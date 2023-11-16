@@ -2,12 +2,13 @@ import { getEnv } from "../EnvVarManager"
 import { QdrantStorage } from "../storage/QdrantStorage"
 import readline from "readline/promises"
 import { FileInfo } from "../types/FileInfo"
+import { queryToKeywords } from "../llm/usecases"
 
 
 async function main() {
   const qdrantUrl = getEnv().qdrantUrl()
   const qdrantApiKey = getEnv().qdrantApiKey()
-  const indexName = "7cf72314-e8ab-4529-9622-6098d952e80e"
+  const indexName = "c91a3ee7-5458-481d-9a98-a9f324e20dfc"
   const storage = new QdrantStorage(qdrantUrl, qdrantApiKey, indexName)
   console.log("index: " + indexName)
 
@@ -17,16 +18,31 @@ async function main() {
   })
   while(true) {
     const query = await rl.question(`query: `)
-    const result = await storage.search(query)
-    const dedupeMap = new Map<string, boolean>()
-    const deduped = [] as FileInfo[]
-    for (const r of result) {
-      if (!dedupeMap.has(r.url)) {
-        dedupeMap.set(r.url, true)
-        deduped.push(r)
+    const kResult = await queryToKeywords(query)
+    const keywords = kResult.content.split("\n").map((s) => s.replace(/$-/, "").trim()).filter((s) => s.length > 0)
+    console.log(keywords)
+
+    const results = [] as FileInfo[][]
+    for (const keyword of keywords) {
+      const result = await storage.search(keyword)
+      results.push(result)
+    }
+
+    const rankingMap = new Map<string, number>()
+    const dedupeMap = new Map<string, FileInfo>()
+    for (const rr of results) {
+      for (let i = 0; i < rr.length; i++) {
+        const r = rr[i]
+        dedupeMap.set(r.url, r)
+        const point = rankingMap.get(r.url) || 0
+        rankingMap.set(r.url, point + (rr.length - i))
       }
     }
-    console.log(deduped)
+    const ranking = Array.from(rankingMap.entries()).sort((a, b) => b[1] - a[1])
+    for (const [url, p] of ranking) {
+      console.log(dedupeMap.get(url))
+      console.log(p)
+    }
   }
 }
 

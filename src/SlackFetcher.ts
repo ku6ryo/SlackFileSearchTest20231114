@@ -120,15 +120,14 @@ export class SlackFetcher {
 
   async indexParsedMessage(parsedMessage: ParsedMessage) {
     for (const att of parsedMessage.attachments) {
-      if (!att.mimeType || !att.size || att.size > 50_000_000) {
-        continue
-      }
       try {
         if (att.mimeType === MimeType.Jpeg || att.mimeType === MimeType.Png) {
           await this.indexImage(att.name || "", att.url)
         } else if (att.mimeType === MimeType.Svg) {
           await this.indexSvg(att.name || "", att.url)
         } else if (att.mimeType === MimeType.Pptx || att.mimeType === MimeType.Ppt) {
+          await this.indexPpt(att.name || "", att.url)
+        } else if (att.mimeType === MimeType.Xlsx || att.mimeType === MimeType.Xls) {
           await this.indexPpt(att.name || "", att.url)
         } else if (att.mimeType === MimeType.Pdf) {
           await this.indexPdf(att.name || "", att.url)
@@ -145,8 +144,8 @@ export class SlackFetcher {
   async indexWebPage(url: string) {
     const { title, text } = await getWebpageContentText(url, 1000)
      const summary = await summarize(text)
-     const lines = summary.content.split("\n")
-     await this.qdrant.index(lines.map((line) => ({
+     const kws = JSON.parse(summary.content).keywords as string[]
+     await this.qdrant.index(kws.map((line) => ({
        text: line,
        name: title,
        url,
@@ -227,10 +226,9 @@ export class SlackFetcher {
        return text
      })()
      console.log(name, text, title)
-     console.log("############# SUMMARY #############")
      const summary = await summarize(text)
-     const lines = summary.content.split("\n")
-     await this.qdrant.index(lines.map((line) => ({
+     const kws = JSON.parse(summary.content).keywords as string[]
+     await this.qdrant.index(kws.map((line) => ({
        text: line,
        name,
        url,

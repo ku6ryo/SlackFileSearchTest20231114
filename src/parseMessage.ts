@@ -22,8 +22,23 @@ export function parseMessage(msg: MessageElement): ParsedMessage {
   ) {
     throw new Error("text, ts, or user is undefined")
   }
-  console.log("text: " + text)
   const cleanAttachments: UnifiedAttachment[] = []
+  if (attachments) {
+    console.log(attachments)
+    attachments.forEach((attachment) => {
+      const url = attachment.original_url || attachment.from_url
+      if (!url) {
+        return
+      }
+      cleanAttachments.push({
+        name: attachment.title || null,
+        mimeType: null,
+        size: null,
+        url,
+      })
+    })
+  }
+  console.log("text: " + text)
   if (files) {
     for (const file of files) {
       const { mimetype, name } = file
